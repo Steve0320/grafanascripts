@@ -20,12 +20,8 @@ result = session.post(
     data={'user': sys.argv[1], 'passwd': sys.argv[2]}
 )
 
-# print(session.cookies['_MyAccountWeb_session'])
-
 # Retrieve API data in JSON format
 api_response = session.get(api_url).json()
-
-#print(json.dumps(api_response, indent=2))
 
 # Calculate current month
 now = datetime.datetime.now()
@@ -43,8 +39,7 @@ for month in api_response['usageMonths']:
 
 # Error if month not found
 if cur_month is None:
-    print('Current month not found in API response')
-    exit(-1)
+    sys.exit('Current month not found in API response')
 
 # Extract values to insert into database
 cur_usage = cur_month['homeUsage']

@@ -1,5 +1,8 @@
 import re
 import sys
+import datetime
+
+from influxdb import InfluxDBClient
 
 from selenium import webdriver
 
@@ -30,7 +33,7 @@ try:
     wait.until(EC.presence_of_element_located((By.ID, 'login')))
 except TimeoutException:
     driver.quit()
-    exit(-1)
+    sys.exit('Login failed')
 
 # Submit login credentials
 driver.find_element_by_id('userName').send_keys(sys.argv[1])
@@ -43,13 +46,34 @@ try:
     usage_str = wait.until(EC.presence_of_element_located((By.XPATH, "//span[@ng-if='viewModel.pu_usage_cato']"))).text
 except TimeoutException:
     driver.quit()
-    exit(-1)
+    sys.exit('Scraping main page failed')
 
 # Extract usage data
 match = re.fullmatch('(\d+\.\d+) of (\d+\.\d+).+', usage_str)
-usage = float(match.group(1))
-total = float(match.group(2))
-
-print(usage/total*100)
+cur_usage = float(match.group(1))
+cur_cap = float(match.group(2))
 
 driver.quit()
+
+# Get time info for InfluxDB
+now = datetime.datetime.now()
+month_number = "{:02d}".format(now.month)
+year_number = "{:04d}".format(now.year)
+
+# Construct point
+point = [
+    {
+        "measurement": "network_usage",
+        "tags": {
+            "network": "att",
+            "year": year_number,
+            "month": month_number
+        },
+        "fields": {
+            "usage": cur_usage,
+            "cap": cur_cap
+        }
+    }
+]
+
+print(point)
