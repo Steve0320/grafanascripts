@@ -56,7 +56,7 @@ elif unit == 'MB':
 elif unit == 'TB':
     cur_usage *= 1024
 else:
-    cur_usage = -1 * cur_cap
+    cur_usage = -1
 
 # Construct point
 point = [

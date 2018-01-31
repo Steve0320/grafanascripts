@@ -1,64 +1,75 @@
-import re
 import sys
+import requests
+import json
 import datetime
 
 from influxdb import InfluxDBClient
-
-from selenium import webdriver
-
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-
-from selenium.common.exceptions import TimeoutException
 
 if len(sys.argv) != 3:
     print('Usage: att.py <username> <password>')
     exit(0)
 
-# Launch a headless Chrome session to scrape
-chrome_options = Options()
-chrome_options.add_argument("--headless")
-chrome_options.add_argument("--disable-gpu")
-chrome_options.add_argument("--window-size=1366x768")
+# Use MyATT iOS API to retrieve usage data
+api_url = 'https://m.att.com/best/resources/unauth/shared/native/overview/details'
 
-driver = webdriver.Chrome(chrome_options=chrome_options)
-wait = WebDriverWait(driver, 20)
+# Set data specific to app
+cookies = {
+    'accessDomain': 'native',
+    'myattappversion': '5.6.1',
+    'RHR5': 'Y',
+}
 
-driver.get('https://www.att.com/my/#/login')
+headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Requested-By': 'MYATT',
+}
 
-# Wait until login form loaded
-try:
-    wait.until(EC.presence_of_element_located((By.ID, 'login')))
-except TimeoutException:
-    driver.quit()
-    sys.exit('Login failed')
+data = {
+    'CommonData': {
+            'Language': 'EN',
+            'AppName': 'iOS-MYATT',
+            'AppVersion': '5.6.1'
+    },
+    'UserId': sys.argv[1],
+    'Password': sys.argv[2]
+}
 
-# Submit login credentials
-driver.find_element_by_id('userName').send_keys(sys.argv[1])
-driver.find_element_by_class_name('lgwgPassword').send_keys(sys.argv[2])
-driver.find_element_by_id('loginButton').click()
+# Retrieve API data in JSON format
+response = requests.post(
+    api_url,
+    headers=headers,
+    cookies=cookies,
+    data=json.dumps(data),
+    timeout=30
+).json()
 
-# Wait for main accounts page to load
-try:
-    wait.until(EC.url_to_be('https://www.att.com/my/#/accountOverview'))
-    usage_str = wait.until(EC.presence_of_element_located((By.XPATH, "//span[@ng-if='viewModel.pu_usage_cato']"))).text
-except TimeoutException:
-    driver.quit()
-    sys.exit('Scraping main page failed')
+# Error if API does not return success code
+if response['Result']['Status'] != 'SUCCESS':
+    exit('API request failed')
 
-# Extract usage data
-match = re.fullmatch('(\d+\.\d+) of (\d+\.\d+).+', usage_str)
-cur_usage = float(match.group(1))
-cur_cap = float(match.group(2))
+# Pull usage container
+usage_card = response['NativeOverviewDetails']['cards'][2]['data']
 
-driver.quit()
-
-# Get time info for InfluxDB
+# Format current date
 now = datetime.datetime.now()
 month_number = "{:02d}".format(now.month)
-year_number = "{:04d}".format(now.year)
+year_number = "{:02}".format(now.year)
+
+# Extract relevant values
+cur_usage = usage_card['pu_used']
+cur_cap = usage_card['pu_alloted']
+unit = usage_card['pu_uom']
+
+# Normalize to GB
+if unit == 'GB':
+    cur_usage = cur_usage
+elif unit == 'MB':
+    cur_usage /= 1024
+elif unit == 'TB':
+    cur_usage *= 1024
+else:
+    cur_usage = -1
 
 # Construct point
 point = [
@@ -71,10 +82,11 @@ point = [
         },
         "fields": {
             "usage": cur_usage,
-            "cap": cur_cap
+            "cap": cur_cap,
         }
     }
 ]
 
+# Post data to InfluxDB
 influx_db = InfluxDBClient('localhost', 8086, 'root', 'root', 'grafana')
 influx_db.write_points(point)
