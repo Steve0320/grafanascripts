@@ -76,4 +76,5 @@ point = [
     }
 ]
 
-print(point)
+influx_db = InfluxDBClient('localhost', 8086, 'root', 'root', 'grafana')
+influx_db.write_points(point)
