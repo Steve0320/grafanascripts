@@ -2,6 +2,7 @@ import requests
 import json
 import sys
 import datetime
+import pytz
 from influxdb import InfluxDBClient
 
 if len(sys.argv) != 3:
@@ -24,7 +25,8 @@ result = session.post(
 api_response = session.get(api_url).json()
 
 # Calculate current month
-now = datetime.datetime.now()
+tz = pytz.timezone('America/Los_Angeles')
+now = datetime.datetime.now(tz)
 month_number = "{:02d}".format(now.month)
 year_number = "{:04d}".format(now.year)
 
@@ -39,7 +41,7 @@ for month in api_response['usageMonths']:
 
 # Error if month not found
 if cur_month is None:
-    sys.exit('Current month not found in API response')
+    exit('Current month not found in API response')
 
 # Extract values to insert into database
 cur_usage = cur_month['homeUsage']

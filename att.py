@@ -2,6 +2,7 @@ import sys
 import requests
 import json
 import datetime
+import pytz
 
 from influxdb import InfluxDBClient
 
@@ -52,7 +53,8 @@ if response['Result']['Status'] != 'SUCCESS':
 usage_card = response['NativeOverviewDetails']['cards'][2]['data']
 
 # Format current date
-now = datetime.datetime.now()
+tz = pytz.timezone('America/Los_Angeles')
+now = datetime.datetime.now(tz)
 month_number = "{:02d}".format(now.month)
 year_number = "{:02}".format(now.year)
 
