@@ -3,6 +3,7 @@ import requests
 import json
 import datetime
 import pytz
+from network_helpers import find_values
 
 from influxdb import InfluxDBClient
 
@@ -43,14 +44,7 @@ response = requests.post(
     cookies=cookies,
     data=json.dumps(data),
     timeout=30
-).json()
-
-# Error if API does not return success code
-if response['Result']['Status'] != 'SUCCESS':
-    exit('API request failed')
-
-# Pull usage container
-usage_card = response['NativeOverviewDetails']['cards'][2]['data']
+).text
 
 # Format current date
 tz = pytz.timezone('America/Los_Angeles')
@@ -58,10 +52,15 @@ now = datetime.datetime.now(tz)
 month_number = "{:02d}".format(now.month)
 year_number = "{:02}".format(now.year)
 
-# Extract relevant values
-cur_usage = usage_card['pu_used']
-cur_cap = usage_card['pu_alloted']
-unit = usage_card['pu_uom']
+# Try to extract relevant values
+try:
+    status, cur_usage, cur_cap, unit = find_values(['Status', 'pu_used', 'pu_alloted', 'pu_uom'], response)
+except ValueError:
+    exit("API did not return a valid response")
+
+# Error if API does not return success code
+if status != 'SUCCESS':
+    exit('API returned failure status')
 
 # Normalize to GB
 if unit == 'GB':
@@ -90,5 +89,5 @@ point = [
 ]
 
 # Post data to InfluxDB
-influx_db = InfluxDBClient('localhost', 8086, 'root', 'root', 'grafana')
-influx_db.write_points(point)
+#influx_db = InfluxDBClient('localhost', 8086, 'root', 'root', 'grafana')
+#influx_db.write_points(point)
