@@ -89,5 +89,5 @@ point = [
 ]
 
 # Post data to InfluxDB
-#influx_db = InfluxDBClient('localhost', 8086, 'root', 'root', 'grafana')
-#influx_db.write_points(point)
+influx_db = InfluxDBClient('localhost', 8086, 'root', 'root', 'grafana')
+influx_db.write_points(point)
